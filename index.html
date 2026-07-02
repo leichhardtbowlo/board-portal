@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Bowlo — Board Portal</title>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
+<style>
+:root {
+  --navy:#0D2141;--teal:#0D3A3D;--amber:#f59e0b;
+  --white:#fff;--off:#f4f6f9;--mid:#e2e8f0;
+  --text:#1a202c;--muted:#64748b;
+  --radius:10px;
+  --shadow:0 2px 10px rgba(0,0,0,.09);
+  --shadow-lg:0 6px 28px rgba(0,0,0,.14);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--off);color:var(--text);min-height:100vh;display:flex;flex-direction:column;}
+
+.login-flash{position:fixed;inset:0;background:var(--navy);display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;z-index:999;}
+.login-flash.active{display:flex;}
+.flash-logo{height:80px;border-radius:16px;}
+.flash-spinner{width:32px;height:32px;border:3px solid rgba(255,255,255,.2);border-top-color:var(--amber);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.flash-signing{font-size:13px;color:rgba(255,255,255,.45);letter-spacing:.05em;}
+
+.login-screen{min-height:100vh;background:var(--navy);display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;}
+.login-screen.active{display:flex;}
+.login-card{background:var(--white);border-radius:16px;padding:36px 32px;width:320px;text-align:center;box-shadow:var(--shadow-lg);}
+.login-logo{height:64px;margin-bottom:16px;border-radius:14px;}
+.login-card h1{font-size:18px;color:var(--navy);margin-bottom:4px;}
+.login-card p{font-size:13px;color:var(--muted);margin-bottom:24px;}
+.btn-login{background:var(--navy);color:var(--white);border:none;border-radius:8px;padding:12px 24px;font-size:14px;font-weight:600;cursor:pointer;width:100%;}
+.login-note{font-size:12px;color:rgba(255,255,255,.45);margin-top:8px;}
+
+.portal-header{background:var(--navy);padding:28px 24px 0;display:none;flex-direction:column;align-items:center;text-align:center;}
+.portal-header.active{display:flex;}
+.portal-logo{height:76px;margin-bottom:18px;border-radius:14px;}
+.portal-club-name{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.16em;color:rgba(255,255,255,.45);margin-bottom:6px;}
+.portal-greeting{font-size:28px;font-weight:800;color:#fff;letter-spacing:-.02em;margin-bottom:5px;}
+.portal-date{font-size:13px;color:rgba(255,255,255,.45);margin-bottom:22px;}
+.header-wave{width:100%;display:block;margin-bottom:-2px;}
+
+.portal-main{display:none;flex:1;padding:22px 16px 36px;max-width:500px;margin:0 auto;width:100%;}
+.portal-main.active{display:block;}
+.section-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px;padding-left:2px;}
+.app-list{display:flex;flex-direction:column;gap:10px;margin-bottom:28px;}
+.app-tile{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);display:flex;align-items:center;cursor:pointer;text-decoration:none;color:var(--text);overflow:hidden;border:1px solid rgba(0,0,0,.04);position:relative;}
+.app-tile:hover{box-shadow:var(--shadow-lg);}
+.tile-accent{width:5px;align-self:stretch;flex-shrink:0;}
+.accent-reports{background:linear-gradient(180deg,#0D2141,#1e4080);}
+.accent-projects{background:linear-gradient(180deg,#0D3A3D,#0e5a5f);}
+.accent-rm{background:linear-gradient(180deg,#b45309,#f59e0b);}
+.accent-agenda{background:linear-gradient(180deg,#5b21b6,#8b5cf6);}
+.tile-icon{width:52px;height:52px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;margin:12px 4px 12px 14px;}
+.icon-reports{background:#eef2ff;} .icon-projects{background:#f0fdfa;} .icon-rm{background:#fffbeb;} .icon-agenda{background:#f5f3ff;}
+.tile-text{flex:1;padding:14px 10px;min-width:0;}
+.tile-title{font-size:15px;font-weight:700;color:var(--navy);margin-bottom:3px;}
+.tile-desc{font-size:12px;color:var(--muted);}
+.tile-arrow{padding:0 16px;color:var(--mid);flex-shrink:0;}
+.tile-badge{position:absolute;top:10px;right:38px;background:#dc2626;color:#fff;font-size:10px;font-weight:800;min-width:18px;height:18px;border-radius:9px;padding:0 4px;display:flex;align-items:center;justify-content:center;border:2px solid var(--white);}
+
+.attention-strip{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:28px;border:1px solid rgba(0,0,0,.04);}
+.attention-items{display:flex;flex-direction:column;gap:10px;}
+.attention-item{display:flex;align-items:flex-start;gap:10px;}
+.att-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px;}
+.att-red{background:#dc2626;} .att-amber{background:#f59e0b;} .att-blue{background:#0ea5e9;} .att-green{background:#16a34a;}
+.att-text{flex:1;font-size:13px;color:var(--text);line-height:1.4;}
+.att-text strong{color:var(--navy);}
+.att-tag{font-size:10px;font-weight:700;color:var(--muted);background:var(--off);border:1px solid var(--mid);border-radius:4px;padding:2px 6px;white-space:nowrap;align-self:flex-start;margin-top:1px;flex-shrink:0;}
+.attention-empty{font-size:13px;color:var(--muted);text-align:center;padding:8px 0;}
+.attention-loading{font-size:13px;color:var(--muted);text-align:center;padding:8px 0;}
+
+.portal-footer{display:none;text-align:center;padding:0 16px 32px;}
+.portal-footer.active{display:block;}
+.footer-text{font-size:11px;color:var(--muted);line-height:1.7;}
+.btn-signout{margin-top:12px;background:none;border:1px solid var(--mid);color:var(--muted);border-radius:20px;padding:7px 18px;font-size:12px;cursor:pointer;}
+.btn-signout:hover{border-color:var(--navy);color:var(--navy);}
+
+@media(max-width:400px){.portal-greeting{font-size:24px;} .tile-title{font-size:14px;} .tile-icon{width:46px;height:46px;font-size:21px;}}
+</style>
+</head>
+<body>
+
+<div class="login-flash" id="login-flash">
+  <img class="flash-logo" src="https://leichhardtbowlo.github.io/director-reports/bowlo-logo.png" alt="The Bowlo" onerror="this.style.display='none'">
+  <div class="flash-spinner"></div>
+  <div class="flash-signing">Signing you in with Microsoft 365…</div>
+</div>
+
+<div class="login-screen" id="login-screen">
+  <div class="login-card">
+    <img class="login-logo" src="https://leichhardtbowlo.github.io/director-reports/bowlo-logo.png" alt="The Bowlo" onerror="this.style.display='none'">
+    <h1>Board Portal</h1>
+    <p>Leichhardt Bowlo</p>
+    <button class="btn-login" onclick="signIn()">Sign in with Microsoft 365</button>
+  </div>
+  <p class="login-note">Leichhardt Bowling Club staff &amp; management only</p>
+</div>
+
+<div class="portal-header" id="portal-header">
+  <img class="portal-logo" src="https://leichhardtbowlo.github.io/director-reports/bowlo-logo.png" alt="Leichhardt Bowling Club" onerror="this.style.display='none'">
+  <div class="portal-club-name">Leichhardt Bowling &amp; Recreation Club</div>
+  <div class="portal-greeting" id="greeting">G'day 👋</div>
+  <div class="portal-date" id="portal-date"></div>
+  <svg class="header-wave" viewBox="0 0 390 36" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 C100 36 290 36 390 0 L390 36 L0 36 Z" fill="#f4f6f9"/></svg>
+</div>
+
+<div class="portal-main" id="portal-main">
+  <div class="section-label">Board tools</div>
+  <div class="app-list">
+    <a class="app-tile" href="https://leichhardtbowlo.github.io/director-reports/DirectorReports_LIVE.html">
+      <div class="tile-accent accent-reports"></div>
+      <div class="tile-icon icon-reports">📊</div>
+      <div class="tile-text"><div class="tile-title">Director Reports</div><div class="tile-desc">Monthly reports, board papers and director submissions</div></div>
+      <div class="tile-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></div>
+    </a>
+    <a class="app-tile" href="https://leichhardtbowlo.github.io/project-library/index.html">
+      <div class="tile-accent accent-projects"></div>
+      <div class="tile-icon icon-projects">📁</div>
+      <div class="tile-text"><div class="tile-title">Project Library</div><div class="tile-desc">Active projects, wishlist, grants tracker and activity feed</div></div>
+      <div class="tile-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></div>
+      <div class="tile-badge" id="badge-grants" style="display:none"></div>
+    </a>
+    <a class="app-tile" href="https://leichhardtbowlo.github.io/rm-requests/index.html">
+      <div class="tile-accent accent-rm"></div>
+      <div class="tile-icon icon-rm">🔧</div>
+      <div class="tile-text"><div class="tile-title">R&amp;M To-Do List</div><div class="tile-desc">Repairs, maintenance requests and job tracking</div></div>
+      <div class="tile-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></div>
+      <div class="tile-badge" id="badge-rm" style="display:none"></div>
+    </a>
+    <a class="app-tile" href="https://leichhardtbowlo.github.io/agenda-submission/index.html">
+      <div class="tile-accent accent-agenda"></div>
+      <div class="tile-icon icon-agenda">📋</div>
+      <div class="tile-text"><div class="tile-title">Board Agenda Submissions</div><div class="tile-desc">Submit and manage agenda items and board proposals</div></div>
+      <div class="tile-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></div>
+      <div class="tile-badge" id="badge-agenda" style="display:none"></div>
+    </a>
+  </div>
+
+  <div class="section-label">What needs attention</div>
+  <div class="attention-strip">
+    <div class="attention-items" id="attention-items">
+      <div class="attention-loading">Checking for updates…</div>
+    </div>
+  </div>
+</div>
+
+<div class="portal-footer" id="portal-footer">
+  <div class="footer-text">Leichhardt Bowling &amp; Recreation Club Ltd<br>Board &amp; Management Portal · Secured with Microsoft 365</div>
+  <button class="btn-signout" onclick="signOut()">Sign out</button>
+</div>
+
+<script>
+const CLIENT_ID = 'd9fd75d8-87ab-4f4d-8281-5504d7bb2f3a';
+const TENANT_ID = '3e8f57de-d795-48c9-8537-0b1caae52c09';
+const REDIRECT_URI = 'https://leichhardtbowlo.github.io/board-portal/index.html';
+const SP_HOST = 'leichhardtbowlingclub.sharepoint.com';
+
+const msalConfig = { auth: { clientId: CLIENT_ID, authority: `https://login.microsoftonline.com/${TENANT_ID}`, redirectUri: REDIRECT_URI }, cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false } };
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+const scopes = ['https://graph.microsoft.com/Sites.ReadWrite.All', 'https://graph.microsoft.com/Files.ReadWrite.All'];
+let currentUser = null;
+let siteId = null;
+
+function signIn() {
+  document.getElementById('login-flash').classList.add('active');
+  msalInstance.loginRedirect({ scopes, prompt: 'select_account' });
+}
+async function getToken() {
+  try { return (await msalInstance.acquireTokenSilent({ scopes, account: currentUser })).accessToken; }
+  catch (e) { msalInstance.acquireTokenRedirect({ scopes }); return new Promise(() => {}); }
+}
+function signOut() { msalInstance.logoutRedirect(); }
+
+async function apiGet(url) {
+  const token = await getToken();
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+function showLoggedOut() {
+  document.getElementById('login-flash').classList.remove('active');
+  document.getElementById('login-screen').classList.add('active');
+}
+
+async function onSignedIn() {
+  document.getElementById('login-flash').classList.remove('active');
+  document.getElementById('login-screen').classList.remove('active');
+  document.getElementById('portal-header').classList.add('active');
+  document.getElementById('portal-main').classList.add('active');
+  document.getElementById('portal-footer').classList.add('active');
+
+  const name = (currentUser.name || currentUser.username || '').split(' ')[0];
+  document.getElementById('greeting').textContent = name ? `G'day, ${name} 👋` : `G'day 👋`;
+  const now = new Date();
+  document.getElementById('portal-date').textContent = now.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  loadAttentionItems();
+}
+
+// ── LIVE STATUS STRIP ──
+// Pulls real data from the same SharePoint site the other apps use. Since this
+// portal's own Sites.ReadWrite.All permission covers the whole site collection,
+// it can read R&M/Grants/Agenda data without needing each app's own token.
+async function loadAttentionItems() {
+  const container = document.getElementById('attention-items');
+  try {
+    const siteRes = await apiGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:/`);
+    siteId = siteRes.id;
+    const listsRes = await apiGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists?$top=999`);
+    const normalise = s => String(s||'').replace(/&/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+    const find = name => listsRes.value.find(l=>l.displayName===name) || listsRes.value.find(l=>normalise(l.displayName)===normalise(name));
+
+    const items = [];
+
+    // R&M critical unassigned items
+    try {
+      const rmList = find('Repairs  Maintenance Request') || listsRes.value.find(l=>normalise(l.displayName).includes('repairs maintenance request'));
+      if (rmList) {
+        const rmItems = await apiGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${rmList.id}/items?expand=fields&$top=999`);
+        const critical = (rmItems.value||[]).filter(i => i.fields.Urgency==='Critical' && (i.fields.Status==='Unassigned' || i.fields.Status?.Value==='Unassigned'));
+        if (critical.length) {
+          items.push({dot:'att-red', text:`<strong>${critical.length} critical R&amp;M item${critical.length!==1?'s':''}</strong> unassigned — ${escHtml(critical[0].fields.Title||'')}${critical.length>1?' and more':''}`, tag:'R&M'});
+          document.getElementById('badge-rm').textContent = critical.length;
+          document.getElementById('badge-rm').style.display = 'flex';
+        }
+      }
+    } catch(e) { console.warn('R&M status check failed:', e); }
+
+    // Grants closing soon
+    try {
+      const grantsList = find('Grants');
+      if (grantsList) {
+        const grantItems = await apiGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${grantsList.id}/items?expand=fields&$top=999`);
+        const closingSoon = (grantItems.value||[]).filter(g => {
+          if (!g.fields.CloseDate || g.fields.Status==='Submitted' || g.fields.Status==='Awarded' || g.fields.Status==='Unsuccessful') return false;
+          const days = Math.ceil((new Date(g.fields.CloseDate) - new Date()) / 86400000);
+          return days >= 0 && days <= 14;
+        });
+        if (closingSoon.length) {
+          const soonest = closingSoon.sort((a,b)=>new Date(a.fields.CloseDate)-new Date(b.fields.CloseDate))[0];
+          const days = Math.ceil((new Date(soonest.fields.CloseDate) - new Date()) / 86400000);
+          items.push({dot:'att-red', text:`<strong>${escHtml(soonest.fields.GrantName||'A grant')}</strong> closes in ${days} day${days!==1?'s':''}`, tag:'Grants'});
+          document.getElementById('badge-grants').textContent = closingSoon.length;
+          document.getElementById('badge-grants').style.display = 'flex';
+        }
+      }
+    } catch(e) { console.warn('Grants status check failed:', e); }
+
+    // Draft agenda submissions
+    try {
+      const agendaLib = find('Board Agenda Submissions');
+      if (agendaLib) {
+        const drivesRes = await apiGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/drives`);
+        const agendaDrive = drivesRes.value.find(d=>d.name==='Board Agenda Submissions') || drivesRes.value.find(d=>normalise(d.name)===normalise('Board Agenda Submissions'));
+        if (agendaDrive) {
+          const folders = await apiGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${agendaDrive.id}/root/children?expand=listItem($expand=fields)&$top=999`);
+          const drafts = (folders.value||[]).filter(f => f.folder && f.listItem?.fields?.SubmissionStatus==='Draft');
+          if (drafts.length) {
+            items.push({dot:'att-amber', text:`<strong>${drafts.length} agenda submission${drafts.length!==1?'s':''}</strong> still in draft`, tag:'Agenda'});
+            document.getElementById('badge-agenda').textContent = drafts.length;
+            document.getElementById('badge-agenda').style.display = 'flex';
+          }
+        }
+      }
+    } catch(e) { console.warn('Agenda status check failed:', e); }
+
+    container.innerHTML = items.length
+      ? items.map(i => `<div class="attention-item"><div class="att-dot ${i.dot}"></div><div class="att-text">${i.text}</div><div class="att-tag">${i.tag}</div></div>`).join('')
+      : '<div class="attention-empty">All clear — nothing urgent right now.</div>';
+
+  } catch (e) {
+    console.error('Attention strip failed:', e);
+    container.innerHTML = `<div class="attention-empty">Couldn't load status: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function escHtml(str) {
+  if (str == null) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── BOOT ──
+(async () => {
+  try {
+    const result = await msalInstance.handleRedirectPromise();
+    let account = result?.account || msalInstance.getAllAccounts()[0];
+    if (!account) {
+      try { account = (await msalInstance.ssoSilent({ scopes })).account; }
+      catch (ssoError) { /* no active session */ }
+    }
+    if (account) {
+      currentUser = account;
+      msalInstance.setActiveAccount(account);
+      await onSignedIn();
+    } else {
+      showLoggedOut();
+    }
+  } catch (e) {
+    console.error('Sign-in failed:', e);
+    showLoggedOut();
+    const note = document.querySelector('.login-note');
+    if (note) note.innerHTML = `<span style="color:#ffb4b4">Sign-in error: ${escHtml(e.errorMessage||e.message||String(e))}</span>`;
+  }
+})();
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.querySelector('.btn-login');
+  if (btn) btn.addEventListener('click', signIn);
+});
+</script>
+</body>
+</html>
